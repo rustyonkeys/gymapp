@@ -6,6 +6,8 @@ from typing import Annotated, Any, Literal, TypeVar
 
 from annotated_doc import Doc
 from fastapi import routing
+from fastapi._body_limit import AppBodyLimitMiddleware
+from fastapi._form_limits import _FormLimits
 from fastapi.datastructures import Default, DefaultPlaceholder
 from fastapi.exception_handlers import (
     http_exception_handler,
@@ -867,7 +869,32 @@ class FastAPI(Starlette):
                 """
             ),
         ] = True,
+        max_body_size: Annotated[
+            int | None,
+            Doc(
+                """
+                Maximum total HTTP request body size in bytes, including files and
+                multipart overhead.
+
+                A more specific configured limit overrides the enclosing default.
+                `None` inherits that default, or leaves the body unlimited when no
+                limit is configured. `0` allows only an empty body.
+
+                Read more in the
+                [FastAPI docs for Request Body Limits](https://fastapi.tiangolo.com/advanced/request-body-limits/).
+                """
+            ),
+        ] = None,
+        form_limits: Annotated[
+            _FormLimits | None,
+            Doc(
+                "Limits for automatic form parsing. Set field and file counts with "
+                "`max_fields` and `max_files`, or the size of a text field in bytes "
+                "with `max_part_size`. Each omitted setting inherits its default."
+            ),
+        ] = None,
     ) -> None:
+        self.max_body_size = max_body_size
         self.debug = debug
         self.title = title
         self.summary = summary
@@ -993,6 +1020,8 @@ class FastAPI(Starlette):
             responses=responses,
             generate_unique_id_function=generate_unique_id_function,
             strict_content_type=strict_content_type,
+            max_body_size=max_body_size,
+            form_limits=form_limits,
         )
         self.exception_handlers: dict[
             Any, Callable[[Request, Any], Response | Awaitable[Response]]
@@ -1046,6 +1075,7 @@ class FastAPI(Starlette):
             [
                 Middleware(ServerErrorMiddleware, handler=error_handler, debug=debug),
                 Middleware(ExceptionTelemetryMiddleware),
+                Middleware(AppBodyLimitMiddleware, max_body_size=self.max_body_size),
             ]
             + self.user_middleware
             + [
@@ -1233,6 +1263,30 @@ class FastAPI(Starlette):
         generate_unique_id_function: Callable[[routing.APIRoute], str] = Default(
             generate_unique_id
         ),
+        max_body_size: Annotated[
+            int | None,
+            Doc(
+                """
+                Maximum total HTTP request body size in bytes, including files and
+                multipart overhead.
+
+                A more specific configured limit overrides the enclosing default.
+                `None` inherits that default, or leaves the body unlimited when no
+                limit is configured. `0` allows only an empty body.
+
+                Read more in the
+                [FastAPI docs for Request Body Limits](https://fastapi.tiangolo.com/advanced/request-body-limits/).
+                """
+            ),
+        ] = None,
+        form_limits: Annotated[
+            _FormLimits | None,
+            Doc(
+                "Limits for automatic form parsing. Set field and file counts with "
+                "`max_fields` and `max_files`, or the size of a text field in bytes "
+                "with `max_part_size`. Each omitted setting inherits its default."
+            ),
+        ] = None,
     ) -> None:
         self.router.add_api_route(
             path,
@@ -1259,6 +1313,8 @@ class FastAPI(Starlette):
             name=name,
             openapi_extra=openapi_extra,
             generate_unique_id_function=generate_unique_id_function,
+            max_body_size=max_body_size,
+            form_limits=form_limits,
         )
 
     def frontend(
@@ -1368,6 +1424,30 @@ class FastAPI(Starlette):
         generate_unique_id_function: Callable[[routing.APIRoute], str] = Default(
             generate_unique_id
         ),
+        max_body_size: Annotated[
+            int | None,
+            Doc(
+                """
+                Maximum total HTTP request body size in bytes, including files and
+                multipart overhead.
+
+                A more specific configured limit overrides the enclosing default.
+                `None` inherits that default, or leaves the body unlimited when no
+                limit is configured. `0` allows only an empty body.
+
+                Read more in the
+                [FastAPI docs for Request Body Limits](https://fastapi.tiangolo.com/advanced/request-body-limits/).
+                """
+            ),
+        ] = None,
+        form_limits: Annotated[
+            _FormLimits | None,
+            Doc(
+                "Limits for automatic form parsing. Set field and file counts with "
+                "`max_fields` and `max_files`, or the size of a text field in bytes "
+                "with `max_part_size`. Each omitted setting inherits its default."
+            ),
+        ] = None,
     ) -> Callable[[DecoratedCallable], DecoratedCallable]:
         def decorator(func: DecoratedCallable) -> DecoratedCallable:
             self.router.add_api_route(
@@ -1395,6 +1475,8 @@ class FastAPI(Starlette):
                 name=name,
                 openapi_extra=openapi_extra,
                 generate_unique_id_function=generate_unique_id_function,
+                max_body_size=max_body_size,
+                form_limits=form_limits,
             )
             return func
 
@@ -1653,6 +1735,30 @@ class FastAPI(Starlette):
                 """
             ),
         ] = Default(generate_unique_id),
+        max_body_size: Annotated[
+            int | None,
+            Doc(
+                """
+                Maximum total HTTP request body size in bytes, including files and
+                multipart overhead.
+
+                A more specific configured limit overrides the enclosing default.
+                `None` inherits that default, or leaves the body unlimited when no
+                limit is configured. `0` allows only an empty body.
+
+                Read more in the
+                [FastAPI docs for Request Body Limits](https://fastapi.tiangolo.com/advanced/request-body-limits/).
+                """
+            ),
+        ] = None,
+        form_limits: Annotated[
+            _FormLimits | None,
+            Doc(
+                "Limits for automatic form parsing. Set field and file counts with "
+                "`max_fields` and `max_files`, or the size of a text field in bytes "
+                "with `max_part_size`. Each omitted setting inherits its default."
+            ),
+        ] = None,
     ) -> None:
         """
         Include an `APIRouter` in the same app.
@@ -1683,6 +1789,8 @@ class FastAPI(Starlette):
             default_response_class=default_response_class,
             callbacks=callbacks,
             generate_unique_id_function=generate_unique_id_function,
+            max_body_size=max_body_size,
+            form_limits=form_limits,
         )
 
     def get(
@@ -2016,6 +2124,30 @@ class FastAPI(Starlette):
                 """
             ),
         ] = Default(generate_unique_id),
+        max_body_size: Annotated[
+            int | None,
+            Doc(
+                """
+                Maximum total HTTP request body size in bytes, including files and
+                multipart overhead.
+
+                A more specific configured limit overrides the enclosing default.
+                `None` inherits that default, or leaves the body unlimited when no
+                limit is configured. `0` allows only an empty body.
+
+                Read more in the
+                [FastAPI docs for Request Body Limits](https://fastapi.tiangolo.com/advanced/request-body-limits/).
+                """
+            ),
+        ] = None,
+        form_limits: Annotated[
+            _FormLimits | None,
+            Doc(
+                "Limits for automatic form parsing. Set field and file counts with "
+                "`max_fields` and `max_files`, or the size of a text field in bytes "
+                "with `max_part_size`. Each omitted setting inherits its default."
+            ),
+        ] = None,
     ) -> Callable[[DecoratedCallable], DecoratedCallable]:
         """
         Add a *path operation* using an HTTP GET operation.
@@ -2056,6 +2188,8 @@ class FastAPI(Starlette):
             callbacks=callbacks,
             openapi_extra=openapi_extra,
             generate_unique_id_function=generate_unique_id_function,
+            max_body_size=max_body_size,
+            form_limits=form_limits,
         )
 
     def put(
@@ -2389,6 +2523,30 @@ class FastAPI(Starlette):
                 """
             ),
         ] = Default(generate_unique_id),
+        max_body_size: Annotated[
+            int | None,
+            Doc(
+                """
+                Maximum total HTTP request body size in bytes, including files and
+                multipart overhead.
+
+                A more specific configured limit overrides the enclosing default.
+                `None` inherits that default, or leaves the body unlimited when no
+                limit is configured. `0` allows only an empty body.
+
+                Read more in the
+                [FastAPI docs for Request Body Limits](https://fastapi.tiangolo.com/advanced/request-body-limits/).
+                """
+            ),
+        ] = None,
+        form_limits: Annotated[
+            _FormLimits | None,
+            Doc(
+                "Limits for automatic form parsing. Set field and file counts with "
+                "`max_fields` and `max_files`, or the size of a text field in bytes "
+                "with `max_part_size`. Each omitted setting inherits its default."
+            ),
+        ] = None,
     ) -> Callable[[DecoratedCallable], DecoratedCallable]:
         """
         Add a *path operation* using an HTTP PUT operation.
@@ -2434,6 +2592,8 @@ class FastAPI(Starlette):
             callbacks=callbacks,
             openapi_extra=openapi_extra,
             generate_unique_id_function=generate_unique_id_function,
+            max_body_size=max_body_size,
+            form_limits=form_limits,
         )
 
     def post(
@@ -2767,6 +2927,30 @@ class FastAPI(Starlette):
                 """
             ),
         ] = Default(generate_unique_id),
+        max_body_size: Annotated[
+            int | None,
+            Doc(
+                """
+                Maximum total HTTP request body size in bytes, including files and
+                multipart overhead.
+
+                A more specific configured limit overrides the enclosing default.
+                `None` inherits that default, or leaves the body unlimited when no
+                limit is configured. `0` allows only an empty body.
+
+                Read more in the
+                [FastAPI docs for Request Body Limits](https://fastapi.tiangolo.com/advanced/request-body-limits/).
+                """
+            ),
+        ] = None,
+        form_limits: Annotated[
+            _FormLimits | None,
+            Doc(
+                "Limits for automatic form parsing. Set field and file counts with "
+                "`max_fields` and `max_files`, or the size of a text field in bytes "
+                "with `max_part_size`. Each omitted setting inherits its default."
+            ),
+        ] = None,
     ) -> Callable[[DecoratedCallable], DecoratedCallable]:
         """
         Add a *path operation* using an HTTP POST operation.
@@ -2812,6 +2996,8 @@ class FastAPI(Starlette):
             callbacks=callbacks,
             openapi_extra=openapi_extra,
             generate_unique_id_function=generate_unique_id_function,
+            max_body_size=max_body_size,
+            form_limits=form_limits,
         )
 
     def delete(
@@ -3145,6 +3331,30 @@ class FastAPI(Starlette):
                 """
             ),
         ] = Default(generate_unique_id),
+        max_body_size: Annotated[
+            int | None,
+            Doc(
+                """
+                Maximum total HTTP request body size in bytes, including files and
+                multipart overhead.
+
+                A more specific configured limit overrides the enclosing default.
+                `None` inherits that default, or leaves the body unlimited when no
+                limit is configured. `0` allows only an empty body.
+
+                Read more in the
+                [FastAPI docs for Request Body Limits](https://fastapi.tiangolo.com/advanced/request-body-limits/).
+                """
+            ),
+        ] = None,
+        form_limits: Annotated[
+            _FormLimits | None,
+            Doc(
+                "Limits for automatic form parsing. Set field and file counts with "
+                "`max_fields` and `max_files`, or the size of a text field in bytes "
+                "with `max_part_size`. Each omitted setting inherits its default."
+            ),
+        ] = None,
     ) -> Callable[[DecoratedCallable], DecoratedCallable]:
         """
         Add a *path operation* using an HTTP DELETE operation.
@@ -3185,6 +3395,8 @@ class FastAPI(Starlette):
             callbacks=callbacks,
             openapi_extra=openapi_extra,
             generate_unique_id_function=generate_unique_id_function,
+            max_body_size=max_body_size,
+            form_limits=form_limits,
         )
 
     def options(
@@ -3518,6 +3730,30 @@ class FastAPI(Starlette):
                 """
             ),
         ] = Default(generate_unique_id),
+        max_body_size: Annotated[
+            int | None,
+            Doc(
+                """
+                Maximum total HTTP request body size in bytes, including files and
+                multipart overhead.
+
+                A more specific configured limit overrides the enclosing default.
+                `None` inherits that default, or leaves the body unlimited when no
+                limit is configured. `0` allows only an empty body.
+
+                Read more in the
+                [FastAPI docs for Request Body Limits](https://fastapi.tiangolo.com/advanced/request-body-limits/).
+                """
+            ),
+        ] = None,
+        form_limits: Annotated[
+            _FormLimits | None,
+            Doc(
+                "Limits for automatic form parsing. Set field and file counts with "
+                "`max_fields` and `max_files`, or the size of a text field in bytes "
+                "with `max_part_size`. Each omitted setting inherits its default."
+            ),
+        ] = None,
     ) -> Callable[[DecoratedCallable], DecoratedCallable]:
         """
         Add a *path operation* using an HTTP OPTIONS operation.
@@ -3558,6 +3794,8 @@ class FastAPI(Starlette):
             callbacks=callbacks,
             openapi_extra=openapi_extra,
             generate_unique_id_function=generate_unique_id_function,
+            max_body_size=max_body_size,
+            form_limits=form_limits,
         )
 
     def head(
@@ -3891,6 +4129,30 @@ class FastAPI(Starlette):
                 """
             ),
         ] = Default(generate_unique_id),
+        max_body_size: Annotated[
+            int | None,
+            Doc(
+                """
+                Maximum total HTTP request body size in bytes, including files and
+                multipart overhead.
+
+                A more specific configured limit overrides the enclosing default.
+                `None` inherits that default, or leaves the body unlimited when no
+                limit is configured. `0` allows only an empty body.
+
+                Read more in the
+                [FastAPI docs for Request Body Limits](https://fastapi.tiangolo.com/advanced/request-body-limits/).
+                """
+            ),
+        ] = None,
+        form_limits: Annotated[
+            _FormLimits | None,
+            Doc(
+                "Limits for automatic form parsing. Set field and file counts with "
+                "`max_fields` and `max_files`, or the size of a text field in bytes "
+                "with `max_part_size`. Each omitted setting inherits its default."
+            ),
+        ] = None,
     ) -> Callable[[DecoratedCallable], DecoratedCallable]:
         """
         Add a *path operation* using an HTTP HEAD operation.
@@ -3931,6 +4193,8 @@ class FastAPI(Starlette):
             callbacks=callbacks,
             openapi_extra=openapi_extra,
             generate_unique_id_function=generate_unique_id_function,
+            max_body_size=max_body_size,
+            form_limits=form_limits,
         )
 
     def patch(
@@ -4264,6 +4528,30 @@ class FastAPI(Starlette):
                 """
             ),
         ] = Default(generate_unique_id),
+        max_body_size: Annotated[
+            int | None,
+            Doc(
+                """
+                Maximum total HTTP request body size in bytes, including files and
+                multipart overhead.
+
+                A more specific configured limit overrides the enclosing default.
+                `None` inherits that default, or leaves the body unlimited when no
+                limit is configured. `0` allows only an empty body.
+
+                Read more in the
+                [FastAPI docs for Request Body Limits](https://fastapi.tiangolo.com/advanced/request-body-limits/).
+                """
+            ),
+        ] = None,
+        form_limits: Annotated[
+            _FormLimits | None,
+            Doc(
+                "Limits for automatic form parsing. Set field and file counts with "
+                "`max_fields` and `max_files`, or the size of a text field in bytes "
+                "with `max_part_size`. Each omitted setting inherits its default."
+            ),
+        ] = None,
     ) -> Callable[[DecoratedCallable], DecoratedCallable]:
         """
         Add a *path operation* using an HTTP PATCH operation.
@@ -4309,6 +4597,8 @@ class FastAPI(Starlette):
             callbacks=callbacks,
             openapi_extra=openapi_extra,
             generate_unique_id_function=generate_unique_id_function,
+            max_body_size=max_body_size,
+            form_limits=form_limits,
         )
 
     def trace(
@@ -4642,6 +4932,30 @@ class FastAPI(Starlette):
                 """
             ),
         ] = Default(generate_unique_id),
+        max_body_size: Annotated[
+            int | None,
+            Doc(
+                """
+                Maximum total HTTP request body size in bytes, including files and
+                multipart overhead.
+
+                A more specific configured limit overrides the enclosing default.
+                `None` inherits that default, or leaves the body unlimited when no
+                limit is configured. `0` allows only an empty body.
+
+                Read more in the
+                [FastAPI docs for Request Body Limits](https://fastapi.tiangolo.com/advanced/request-body-limits/).
+                """
+            ),
+        ] = None,
+        form_limits: Annotated[
+            _FormLimits | None,
+            Doc(
+                "Limits for automatic form parsing. Set field and file counts with "
+                "`max_fields` and `max_files`, or the size of a text field in bytes "
+                "with `max_part_size`. Each omitted setting inherits its default."
+            ),
+        ] = None,
     ) -> Callable[[DecoratedCallable], DecoratedCallable]:
         """
         Add a *path operation* using an HTTP TRACE operation.
@@ -4682,6 +4996,8 @@ class FastAPI(Starlette):
             callbacks=callbacks,
             openapi_extra=openapi_extra,
             generate_unique_id_function=generate_unique_id_function,
+            max_body_size=max_body_size,
+            form_limits=form_limits,
         )
 
     def websocket_route(
